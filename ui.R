@@ -17,14 +17,16 @@ shinyUI(fluidPage(
                         value = 1),
             sliderInput("minseglen",
                         "Minimum Segment Length:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
+                        min = 3,
+                        max = 100,
+                        value = 30),
+            verbatimTextOutput("click")
         ),
 
         # Show a plot of the generated distribution
         mainPanel(
-            plotly::plotlyOutput("segments")
+            plotly::plotlyOutput("segments"),
+            plotOutput("fit")
         )
     )
 ))
