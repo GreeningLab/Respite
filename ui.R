@@ -10,17 +10,12 @@ shinyUI(fluidPage(
     sidebarLayout(
         sidebarPanel(
             fileInput("files", label = h3("File input")),
-            splitLayout(
-              actionButton("logger_left", "←", width = "100%"),
-              numericInput(
-                "logger",
-                NULL,
-                min = 1,
-                max = 100,
-                value = 1
-              ),
-              actionButton("logger_right", "→", width = "100%"),
-              cellWidths = c('25%', '50%', '25%')
+            numericInput(
+              "logger",
+              "Logger Number",
+              min = 1,
+              max = 100,
+              value = 1
             ),
             sliderInput(
               "minseglen",

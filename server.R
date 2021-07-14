@@ -18,14 +18,18 @@ ulog_to_df = function(path){
 
 segment = function(df, minseglen){
   cpt_model = EnvCpt::envcpt(df$conc, models="trendcpt", minseglen=minseglen)$trendcpt
-  purrr::map2_dfr(dplyr::lag(cpt_model@cpts, default=0), cpt_model@cpts, function(start, stop){
+  purrr::pmap_dfr(list(
+    seq_along(cpt_model@cpts),
+    dplyr::lag(cpt_model@cpts, default=0),
+    cpt_model@cpts
+  ), function(i, start, stop){
     rows = df[start:stop, ]
     model = lm(conc ~ time, data=rows, model=TRUE)
-    rows %>% dplyr::mutate(fitted=fitted(model), lm=list(model), env_model=list(cpt_model))
+    rows %>% dplyr::mutate(fitted=fitted(model), lm=list(model), env_model=list(cpt_model), model_number=i)
   })
 }
 
-vline = function(x = 0, color = "red") {
+vline = function(x = 0, ...) {
   list(
     type = "line", 
     y0 = 0, 
@@ -33,32 +37,27 @@ vline = function(x = 0, color = "red") {
     yref = "paper",
     x0 = x, 
     x1 = x, 
-    line = list(color = color)
+    line = list(...)
   )
 }
 
-make_plot = function(df, segments){
+make_plot = function(df, segments, selected_segment){
   plotly::plot_ly() %>%
     plotly::add_trace(name="Data", data=df, x = ~time, y = ~conc, type = 'scatter', mode = 'markers') %>%
-    plotly::add_trace(name="Fit", data=segments, x=~time, y=~fitted,  type = 'scatter', mode = 'lines', line = list(color = 'red)', width = 2)) %>%
+    plotly::add_trace(name="Fit", data=segments, x=~time, y=~fitted,  type = 'scatter', mode = 'lines', line = list(color = 'orange', width = 2)) %>%
+    plotly::add_trace(name="Selected", data=selected_segment, x=~time, y=~fitted,  type = 'scatter', mode = 'lines', line = list(color = 'red', width = 2)) %>%
     plotly::layout(
       xaxis = list(title = "Time (seconds)"), 
       yaxis = list(title = "Concentration (μmol/L)"), 
       hoverdistance=100, 
       hovermode="x unified",
-      shapes=segments %>% dplyr::pull(env_model) %>% dplyr::first() %>% `@`('cpts') %>% purrr::map(vline)
+      shapes=segments %>% dplyr::arrange(time) %>% dplyr::distinct(model_number, .keep_all = TRUE) %>% dplyr::pull(time) %>% purrr::map(vline, color="grey", dash='dash')
     )
-  # (
-  #   ggplot2::ggplot() +
-  #     ggplot2::geom_point(ggplot2::aes(x=time, y=conc), data=df) +
-  #     ggplot2::geom_line(ggplot2::aes(x=time, y=fitted, color="red"), data=segments)
-  # ) %>%
-  #   plotly::ggplotly()
 }
 
 # Define server logic required to draw a histogram
 shiny::shinyServer(function(input, output) {
-
+  
   df = reactive({
     if (input$files %>% length == 0){ return(NULL) }
     input$files$datapath %>% 
@@ -74,21 +73,37 @@ shiny::shinyServer(function(input, output) {
   
   output$segments = plotly::renderPlotly({
     if (input$files %>% length == 0){ return(NULL) }
-    make_plot(df(), segments()) %>% plotly::event_register("plotly_click")
+    make_plot(df(), segments(), selected_segment()) %>% plotly::event_register("plotly_click")
   })
   
-  selected_segment = reactive({
+  selected_point = reactive({
+    if (input$files %>% length == 0){ return(NULL) }
+    
+    # This returns the single row of data corresponding to where the user clicked
     d = plotly::event_data("plotly_click")
-    if (is.null(d)){ return(NULL) }
+    
+    # Return an empty df of the right shape so that it doesn't break downstream
+    if (is.null(d)){ return( segments() %>% dplyr::slice_head(n=0) ) }
     
     x = d$x[[1]]
     segment = segments()
     segment %>% dplyr::filter(dplyr::near(time, x, tol=0.5))
   })
   
+  selected_segment = reactive({
+    # This returns all the rows corresponding to all the data points in the current model segment
+    sel = selected_point()
+    all_seg = segments()
+    
+    # Return an empty df of the right shape so that it doesn't break downstream
+    if (is.null(sel) || nrow(sel) == 0 || nrow(all_seg) == 0){ return( segments() %>% dplyr::slice_head(n=0) ) }
+    
+    all_seg %>% dplyr::filter(model_number == sel$model_number)
+  })
+  
   output$description = renderPrint({
-    segment = selected_segment()
-    if (is.null(segment)){ return(NULL) }
+    segment = selected_point()
+    if (is.null(segment) || nrow(segment) == 0){ return(NULL) }
     
     lm = segment %>% dplyr::pull(lm) %>% dplyr::first()
     cofs = coefficients(lm)
@@ -102,8 +117,8 @@ shiny::shinyServer(function(input, output) {
   })
   
   output$fit = renderPlot({
-    segment = selected_segment()
-    if (is.null(segment)){ return(NULL) }
+    segment = selected_point()
+    if (is.null(segment) || nrow(segment) == 0){ return(NULL) }
     
     lm = segment %>% dplyr::pull(lm) %>% dplyr::first()
     cofs = coefficients(lm)
