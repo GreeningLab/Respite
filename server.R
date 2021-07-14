@@ -1,5 +1,6 @@
 library(magrittr)
 library(shiny)
+library(dbplyr)
 
 ulog_to_df = function(path){
   con = DBI::dbConnect(RSQLite::SQLite(), dbname = path)
