@@ -9,7 +9,7 @@ An R shiny web app for streamlining respiromentry analysis in R.
 Manual rate analysis  can be done in Excel, but is time consuming, as you have to follow all of these steps:
 
 * Export from the electrode software as a CSV
-* Import the CSV into excel
+* Import the CSV into Excel
 * Select a stable range of points, somewhat arbitrarily
 * From these, create a trend plot
 * Extract the trend line from the plot
@@ -24,18 +24,18 @@ In addition, `respR` requires the user to manually determine segments of the dat
 ## Usage
 
 Most users will be able to access the application at <https://multimeric.shinyapps.io/Respite/>.
-The application itself contains help that explains how to use it, but if you have any further questions please create an issue at <https://github.com/multimeric/Respite/issues>.
+The application itself contains help that explains how to use it, but if you have any further questions please create an issue at <https://github.com/GreeningLab/Respite/issues>.
 If this server is overloaded or you want to make manual adjustments, please read on to the next section.
 
 ## Local Installation
 In the terminal (e.g. bash):
 ```bash
-git clone https://github.com/multimeric/Respite.git
+git clone https://github.com/GreeningLab/Respite.git
 cd Respite
 ```
 
 Then, in an R console:
-```
+```R
 # Install dependencies
 install.packages('renv')
 renv::restore()
@@ -47,7 +47,7 @@ shiny::runApp()
 ## Contributing
 Respite still has many possible extensions.
 In particular, it only supports `.ulog` logging files.
-If you would like to contribute a new logging parser, please file an issue at <https://github.com/multimeric/Respite/issues> and we can discuss how this might be done.
+If you would like to contribute a new logging parser, please file an issue at <https://github.com/GreeningLab/Respite/issues> and we can discuss how this might be done.
 
 ## Acknowledgements
 
