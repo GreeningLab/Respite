@@ -10,17 +10,26 @@ shinyUI(fluidPage(
     sidebarLayout(
         sidebarPanel(
             fileInput("files", label = h3("File input")),
-            sliderInput("logger",
-                        "Logger Number",
-                        min = 1,
-                        max = 100,
-                        value = 1),
-            sliderInput("minseglen",
-                        "Minimum Segment Length:",
-                        min = 3,
-                        max = 100,
-                        value = 30),
-            verbatimTextOutput("click")
+            splitLayout(
+              actionButton("logger_left", "←", width = "100%"),
+              numericInput(
+                "logger",
+                NULL,
+                min = 1,
+                max = 100,
+                value = 1
+              ),
+              actionButton("logger_right", "→", width = "100%"),
+              cellWidths = c('25%', '50%', '25%')
+            ),
+            sliderInput(
+              "minseglen",
+              "Minimum Segment Length:",
+              min = 3,
+              max = 100,
+              value = 30
+            ),
+            verbatimTextOutput("description")
         ),
 
         # Show a plot of the generated distribution

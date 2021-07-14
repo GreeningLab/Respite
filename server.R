@@ -1,4 +1,5 @@
 library(magrittr)
+library(shiny)
 
 ulog_to_df = function(path){
   con = DBI::dbConnect(RSQLite::SQLite(), dbname = path)
@@ -19,17 +20,34 @@ segment = function(df, minseglen){
   cpt_model = EnvCpt::envcpt(df$conc, models="trendcpt", minseglen=minseglen)$trendcpt
   purrr::map2_dfr(dplyr::lag(cpt_model@cpts, default=0), cpt_model@cpts, function(start, stop){
     rows = df[start:stop, ]
-    model = lm(conc ~ time, data=rows)
+    model = lm(conc ~ time, data=rows, model=TRUE)
     rows %>% dplyr::mutate(fitted=fitted(model), lm=list(model), env_model=list(cpt_model))
   })
+}
+
+vline = function(x = 0, color = "red") {
+  list(
+    type = "line", 
+    y0 = 0, 
+    y1 = 1, 
+    yref = "paper",
+    x0 = x, 
+    x1 = x, 
+    line = list(color = color)
+  )
 }
 
 make_plot = function(df, segments){
   plotly::plot_ly() %>%
     plotly::add_trace(name="Data", data=df, x = ~time, y = ~conc, type = 'scatter', mode = 'markers') %>%
     plotly::add_trace(name="Fit", data=segments, x=~time, y=~fitted,  type = 'scatter', mode = 'lines', line = list(color = 'red)', width = 2)) %>%
-    plotly::layout(xaxis = list(title = "Time (seconds)"), yaxis = list(title = "Concentration"), hoverdistance=100, hovermode="x unified")
-    
+    plotly::layout(
+      xaxis = list(title = "Time (seconds)"), 
+      yaxis = list(title = "Concentration (μmol/L)"), 
+      hoverdistance=100, 
+      hovermode="x unified",
+      shapes=segments %>% dplyr::pull(env_model) %>% dplyr::first() %>% `@`('cpts') %>% purrr::map(vline)
+    )
   # (
   #   ggplot2::ggplot() +
   #     ggplot2::geom_point(ggplot2::aes(x=time, y=conc), data=df) +
@@ -56,26 +74,45 @@ shiny::shinyServer(function(input, output) {
   
   output$segments = plotly::renderPlotly({
     if (input$files %>% length == 0){ return(NULL) }
-    make_plot(df(), segments()) %>% event_register("plotly_click")
+    make_plot(df(), segments()) %>% plotly::event_register("plotly_click")
   })
   
   selected_segment = reactive({
-    if (input$files %>% length == 0){ return(NULL) }
-    d <- event_data("plotly_click")
+    d = plotly::event_data("plotly_click")
+    if (is.null(d)){ return(NULL) }
+    
     x = d$x[[1]]
     segment = segments()
     segment %>% dplyr::filter(dplyr::near(time, x, tol=0.5))
   })
   
-  output$click = renderPrint({
-    if (input$files %>% length == 0){ return(NULL) }
-    lm = selected_segment() %>% dplyr::pull(lm)
-    summary(lm[[1]])
+  output$description = renderPrint({
+    segment = selected_segment()
+    if (is.null(segment)){ return(NULL) }
+    
+    lm = segment %>% dplyr::pull(lm) %>% dplyr::first()
+    cofs = coefficients(lm)
+    equation = stringr::str_glue(
+      "f(x) = {slope}x + {intercept}",
+      slope=formatC(cofs[[2]], digits=3),
+      intercept = formatC(cofs[[1]], digits=3)
+    )
+    rsquared = (lm %>% vcov() %>% cov2cor() %>% `[[`(1, 2))^2
+    stringr::str_glue("{equation}\nR Squared: {r2}", equation=equation, r2=rsquared %>% formatC(digits=3))
   })
   
   output$fit = renderPlot({
-    if (input$files %>% length == 0){ return(NULL) }
-    lm = selected_segment() %>% dplyr::pull(lm)
-    plot(lm[[1]], which=1)
-  })
+    segment = selected_segment()
+    if (is.null(segment)){ return(NULL) }
+    
+    lm = segment %>% dplyr::pull(lm) %>% dplyr::first()
+    cofs = coefficients(lm)
+    ggplot2::ggplot(lm$model, ggplot2::aes(x=time, y=conc)) +
+      ggplot2::geom_point() + 
+      ggplot2::geom_abline(intercept = cofs[[1]], slope=cofs[[2]]) +
+      ggplot2::xlab("Time (seconds)") +
+      ggplot2::ylab("Concentration (μmol/L)") +
+      ggplot2::theme_gray(base_size = 15)
+      # ggplot2::theme(text = ggplot2::element_text(size=12))
+    })
 })

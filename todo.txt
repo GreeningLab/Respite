@@ -1,0 +1,3 @@
+Highlight current segment
+Show parameters in output
+Arrows for moving through loggers
