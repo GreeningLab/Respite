@@ -2,6 +2,14 @@ library(magrittr)
 library(shiny)
 library(dbplyr)
 
+#' Reads a ulog file and outputs a tibble
+#'
+#' @param path Filepath to the ulog file
+#'
+#' @return A tibble
+#' @export
+#'
+#' @examples
 ulog_to_df = function(path){
   con = DBI::dbConnect(RSQLite::SQLite(), dbname = path)
   dplyr::inner_join(
@@ -17,8 +25,17 @@ ulog_to_df = function(path){
     dplyr::relocate(id, time, conc)
 }
 
-segment = function(df, minseglen){
-  cpt_model = EnvCpt::envcpt(df$conc, models="trendcpt", minseglen=minseglen)$trendcpt
+#' Segments a respirometry data frame
+#'
+#' @param df Containing a "conc" column, which contains the concentration
+#' @param ... Extra parameters to pass into `envcpt`
+#'
+#' @return
+#' @export
+#'
+#' @examples
+segment = function(df, ...){
+  cpt_model = EnvCpt::envcpt(df$conc, models="trendcpt", ...)$trendcpt
   purrr::pmap_dfr(list(
     seq_along(cpt_model@cpts),
     dplyr::lag(cpt_model@cpts, default=0),
@@ -42,7 +59,17 @@ vline = function(x = 0, ...) {
   )
 }
 
-make_plot = function(df, segments, selected_segment){
+#' Make the interactive plotly plot for showing the entire time series of a single logger run
+#'
+#' @param df The data frame for a single logger run, containing `time`, and `conc` columns
+#' @param segments A data frame containing segments, containing `time`, and `fitted` columns
+#' @param selected_segment A data frame containing one or more selected rows. This has the same format as, and should be a subset of the `segments` argument.
+#'
+#' @return The plotly object
+#' @export
+#'
+#' @examples
+make_macro_plot = function(df, segments, selected_segment){
   plotly::plot_ly() %>%
     plotly::add_trace(name="Data", data=df, x = ~time, y = ~conc, type = 'scatter', mode = 'markers') %>%
     plotly::add_trace(name="Fit", data=segments, x=~time, y=~fitted,  type = 'scatter', mode = 'lines', line = list(color = 'orange', width = 2)) %>%
@@ -57,28 +84,41 @@ make_plot = function(df, segments, selected_segment){
 }
 
 # Define server logic required to draw a histogram
-shiny::shinyServer(function(input, output) {
+shiny::shinyServer(function(input, output, session) {
   
-  df = reactive({
+  all_loggers = reactive({
     if (input$files %>% length == 0){ return(NULL) }
     input$files$datapath %>% 
       dplyr::first() %>%
-      ulog_to_df() %>%
-      dplyr::filter(logger==paste("Logger", input$logger))
+      ulog_to_df()
+  })
+  
+  observe({
+    if (input$files %>% length == 0){ return(NULL) }
+    updateSelectInput(session = session, inputId = 'logger', choices=all_loggers() %>% dplyr::pull(logger))
+  })
+  
+  ready_to_plot = reactive({
+    input$files %>% length > 0 && input$logger != ""
+  })
+  
+  df = reactive({
+    if (!ready_to_plot()){ return(NULL) }
+    all_loggers() %>% dplyr::filter(logger == input$logger)
   })
   
   segments = reactive({
-    if (input$files %>% length == 0){ return(NULL) }
+    if (!ready_to_plot()){ return(NULL) }
     segment(df(), input$minseglen)
   })
   
   output$segments = plotly::renderPlotly({
-    if (input$files %>% length == 0){ return(NULL) }
-    make_plot(df(), segments(), selected_segment()) %>% plotly::event_register("plotly_click")
+    if (!ready_to_plot()){ return(NULL) }
+    make_macro_plot(df(), segments(), selected_segment()) %>% plotly::event_register("plotly_click")
   })
   
   selected_point = reactive({
-    if (input$files %>% length == 0){ return(NULL) }
+    if (!ready_to_plot()){ return(NULL) }
     
     # This returns the single row of data corresponding to where the user clicked
     d = plotly::event_data("plotly_click")
@@ -88,10 +128,12 @@ shiny::shinyServer(function(input, output) {
     
     x = d$x[[1]]
     segment = segments()
-    segment %>% dplyr::filter(dplyr::near(time, x, tol=0.5))
+    segment %>% dplyr::filter(dplyr::near(time, x, tol=0.05))
   })
   
   selected_segment = reactive({
+    if (!ready_to_plot()){ return(NULL) }
+    
     # This returns all the rows corresponding to all the data points in the current model segment
     sel = selected_point()
     all_seg = segments()
@@ -102,25 +144,34 @@ shiny::shinyServer(function(input, output) {
     all_seg %>% dplyr::filter(model_number == sel$model_number)
   })
   
-  output$description = renderPrint({
+  output$description = renderTable({
+    region = selected_segment()
     segment = selected_point()
-    if (is.null(segment) || nrow(segment) == 0){ return(NULL) }
-    
+    if (is.null(segment) || nrow(segment) == 0 || nrow(region) == 0){ return(NULL) }
     lm = segment %>% dplyr::pull(lm) %>% dplyr::first()
     cofs = coefficients(lm)
-    equation = stringr::str_glue(
-      "f(x) = {slope}x + {intercept}",
-      slope=formatC(cofs[[2]], digits=3),
-      intercept = formatC(cofs[[1]], digits=3)
-    )
-    rsquared = (lm %>% vcov() %>% cov2cor() %>% `[[`(1, 2))^2
-    stringr::str_glue("{equation}\nR Squared: {r2}", equation=equation, r2=rsquared %>% formatC(digits=3))
-  })
+
+    list(
+      c('Equation', stringr::str_glue(
+        "f(x) = {slope}x + {intercept}",
+        slope=formatC(cofs[[2]], digits=3),
+        intercept = formatC(cofs[[1]], digits=3)
+      ) %>% as.character),
+      c('R Squared', lm %>% summary %>% `$`('r.squared') %>% as.character),
+      c('Intercept (&mu; mol L<sup>-1</sup>)', cofs %>% `[[`(1) %>% as.character),
+      c('Rate (&mu; mol L <sup>-1</sup> s<sup>-1</sup>)', cofs %>% `[[`(2) %>% as.character),
+      c('Rate (&mu; mol L <sup>-1</sup> min<sup>-1</sup>)', cofs %>% `[[`(2) %>% `*`(60) %>% as.character),
+      c('Segment Start (sec)', region$time %>% min %>% as.character),
+      c('Segment End (sec)', region$time %>% max %>% as.character)
+    ) %>% purrr::map_dfr(function(l){
+      tibble::tibble_row(Attribute=l[[1]], Value=l[[2]])
+    })
+  }, sanitize.text.function = function(x) x, striped=TRUE, width="100%", colnames = FALSE)
   
   output$fit = renderPlot({
     segment = selected_point()
     if (is.null(segment) || nrow(segment) == 0){ return(NULL) }
-    
+
     lm = segment %>% dplyr::pull(lm) %>% dplyr::first()
     cofs = coefficients(lm)
     ggplot2::ggplot(lm$model, ggplot2::aes(x=time, y=conc)) +

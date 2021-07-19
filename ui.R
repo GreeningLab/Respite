@@ -19,22 +19,19 @@ shinyUI(fluidPage(
                     title="Choose a .ulog logging file"
                 ),
                 shinyBS::tipify(
-                    numericInput(
+                    selectInput(
                         "logger",
                         "Logger Number",
-                        min = 1,
-                        max = 100,
-                        value = 1
+                        choices = NULL
                     ),
                     title = "The number of the logger to analyse, within the whole experiment"
                 ),
                 shinyBS::tipify(
-                    sliderInput(
+                    numericInput(
                         "minseglen",
                         "Minimum Segment Length:",
-                        min = 3,
-                        max = 100,
-                        value = 30
+                        min = 2,
+                        value = 3
                     ),
                     title = "The algorithm will not produce line segments any smaller than this. Increase this in order to reduce the number of splits"
                 )
@@ -53,10 +50,12 @@ shinyUI(fluidPage(
     fluidRow(
         column(
             width=4,
-            shinyBS::tipify(
-                verbatimTextOutput("description"),
-                title= "Regression statistics will appear here after you click on a line segment"
-            ),
+            withMathJax(
+                shinyBS::tipify(
+                    tableOutput("description"),
+                    title= "Regression statistics will appear here after you click on a line segment"
+                )
+            )
         ),
         column(
             width=8,

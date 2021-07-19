@@ -1,0 +1,13 @@
+Show parameters in output
+Allow for manual split
+[x] Add per minute and per second rate
+[x] Fix  R squared
+Consider fixed length, rolling regression
+Consider manual splits
+[x] Dropdown for logger
+Optional annotation of formula onto the graph
+Allow export for customizable graph (graphpad / excel)
+[x] Change default to be lower
+Allow hiding segment lines
+[x] Convert output into table
+Show segment boundaries in table
