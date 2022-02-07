@@ -1,5 +1,5 @@
 # Respite
-An R shiny web app for streamlining respiromentry analysis in R.
+An R shiny web app for streamlining respirometry analysis in R.
 *Respite* loads raw respirometry data, automatically segments it, and allows you to select a stable segment from which produce a trend plot and equation.
 
 ![](./screenshot.png)
@@ -16,7 +16,7 @@ Manual rate analysis  can be done in Excel, but is time consuming, as you have t
 
 *Respite* automates all these steps, and increases the reproducibility of the method, as it requires of less guesswork.
 
-Alternatively, there exists software for analysing this data. 
+Alternatively, there exists software for analysing this data.
 For example, [`respR`](https://github.com/januarharianto/respR) is a promising R package that provides many helpful utilities.
 However, using such a package still has the barrier of needing to write R code, while *Respite* provides a user-friendly web interface.
 In addition, `respR` requires the user to manually determine segments of the data (ie peaks), whereas *Respite* does this automatically.
