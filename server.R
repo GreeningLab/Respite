@@ -133,7 +133,7 @@ shiny::shinyServer(function(input, output, session) {
   segments = reactive({
     if (!ready_to_plot()){ return(NULL) }
     withProgress(message = 'Calculating segments', value = 0, {
-      segment(df(), input$minseglen)
+      segment(df(), input$minseglen, penalty=input$penalty_type, pen.value=input$penalty_value)
     })
   })
   

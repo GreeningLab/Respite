@@ -35,16 +35,39 @@ shinyUI(fluidPage(
                     title = "The name of the sensor to analyse, for the selected logger"
                 ),
                 shinyBS::tipify(
+                    selectInput(
+                        "penalty_type",
+                        "Penalty Type",
+                        choices = c(
+                            `Bayesian (BIC/SIC)` = "SIC",
+                            `Modified Bayesian (MBIC)`="MBIC",
+                            `Akaike (AIC)` = "AIC",
+                            "Hannan-Quinn",
+                            "Manual"
+                        ),
+                        selected = "MBIC"
+                    ),
+                    title = "Information criterion to use for penalising segments"
+                ),
+                shinyBS::tipify(
+                    numericInput(
+                        "penalty_value",
+                        "Manual Penalty",
+                        min = 0,
+                        value = 100,
+                        step = 0.1
+                    ),
+                    title = "For the manual penalty selected above. The cost of adding a new segment."
+                ),
+                shinyBS::tipify(
                     numericInput(
                         "minseglen",
-                        "Minimum Segment Length:",
+                        "Minimum Segment Length",
                         min = 2,
                         value = 3
                     ),
-                    title = "The algorithm will not produce line segments any smaller than this. Increase this in order to reduce the number of splits"
+                    title = "The minimum number of seconds allowed per segment. Increase this in order to reduce the number of splits"
                 )
-                
-                
             ),
         ),
         column(
