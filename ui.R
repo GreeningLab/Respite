@@ -29,7 +29,7 @@ shinyUI(fluidPage(
                 shinyBS::tipify(
                     selectInput(
                         "sensor",
-                        "Sensor ID",
+                        "Sensor Name",
                         choices = NULL
                     ),
                     title = "The name of the sensor to analyse, for the selected logger"
