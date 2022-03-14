@@ -17,8 +17,13 @@ ulog_to_df = function(path){
     dplyr::tbl(con, "Logger"),
     by=c("LoggerId"="Id")
   ) %>%
-    dplyr::select(Name, Time, CalibratedSensorSignal) %>%
-    dplyr::rename(time = Time, conc=CalibratedSensorSignal, logger=Name) %>%
+    dplyr::inner_join(
+      dplyr::tbl(con, "Sensor"),
+      by=c("SensorId"="Id"),
+      suffix=c("Logger", "Sensor")
+    ) %>%
+    dplyr::select(NameLogger, Time, NameSensor, CalibratedSensorSignal) %>%
+    dplyr::rename(time = Time, conc=CalibratedSensorSignal, logger=NameLogger, sensor=NameSensor) %>%
     dplyr::arrange(time) %>%
     dplyr::collect() %>%
     dplyr::mutate(id = 1:length(time), time = (time - time[[1]]) / 1000) %>% 
@@ -47,6 +52,11 @@ segment = function(df, ...){
   })
 }
 
+
+#' Creates one or more vertical lines. This should be used as the input to the shapes argument to `plotly::layout`
+#'
+#' @param x Vector of x coordinates at which to draw the lines
+#' @param ... Additional arguments to impact the drawing of the line
 vline = function(x = 0, ...) {
   list(
     type = "line", 
@@ -86,6 +96,7 @@ make_macro_plot = function(df, segments, selected_segment){
 # Define server logic required to draw a histogram
 shiny::shinyServer(function(input, output, session) {
   
+  # Load the logger file and convert to data.frame
   all_loggers = reactive({
     if (input$files %>% length == 0){ return(NULL) }
     input$files$datapath %>% 
@@ -93,23 +104,35 @@ shiny::shinyServer(function(input, output, session) {
       ulog_to_df()
   })
   
+  # Update the logger dropdown in response to a file being selected
   observe({
     if (input$files %>% length == 0){ return(NULL) }
-    updateSelectInput(session = session, inputId = 'logger', choices=all_loggers() %>% dplyr::pull(logger))
+    updateSelectInput(session = session, inputId = 'logger', choices=all_loggers() %>% dplyr::pull(logger) %>% unique())
   })
   
+  # Update the sensor dropdown in response to a file being selected
+  observe({
+    if (input$files %>% length == 0){ return(NULL) }
+    updateSelectInput(session = session, inputId = 'sensor', choices=all_loggers() %>% dplyr::pull(sensor) %>% unique())
+  })
+  
+  # If we have all the info we need to render the plot
   ready_to_plot = reactive({
     input$files %>% length > 0 && input$logger != ""
   })
   
+  # The data.frame for the selected logger
   df = reactive({
     if (!ready_to_plot()){ return(NULL) }
-    all_loggers() %>% dplyr::filter(logger == input$logger)
+    all_loggers() %>% dplyr::filter(logger == input$logger, sensor == input$sensor)
   })
   
+  # The calculated segments
   segments = reactive({
     if (!ready_to_plot()){ return(NULL) }
-    segment(df(), input$minseglen)
+    withProgress(message = 'Calculating segments', value = 0, {
+      segment(df(), input$minseglen)
+    })
   })
   
   output$segments = plotly::renderPlotly({

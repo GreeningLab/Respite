@@ -27,6 +27,14 @@ shinyUI(fluidPage(
                     title = "The number of the logger to analyse, within the whole experiment"
                 ),
                 shinyBS::tipify(
+                    selectInput(
+                        "sensor",
+                        "Sensor ID",
+                        choices = NULL
+                    ),
+                    title = "The number of the logger to analyse, within the whole experiment"
+                ),
+                shinyBS::tipify(
                     numericInput(
                         "minseglen",
                         "Minimum Segment Length:",
