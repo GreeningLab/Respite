@@ -32,7 +32,7 @@ shinyUI(fluidPage(
                         "Sensor ID",
                         choices = NULL
                     ),
-                    title = "The number of the logger to analyse, within the whole experiment"
+                    title = "The name of the sensor to analyse, for the selected logger"
                 ),
                 shinyBS::tipify(
                     numericInput(

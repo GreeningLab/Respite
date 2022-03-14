@@ -98,10 +98,12 @@ shiny::shinyServer(function(input, output, session) {
   
   # Load the logger file and convert to data.frame
   all_loggers = reactive({
-    if (input$files %>% length == 0){ return(NULL) }
-    input$files$datapath %>% 
-      dplyr::first() %>%
-      ulog_to_df()
+    withProgress(message = 'Loadding ulog file', value = 0, {
+      if (input$files %>% length == 0){ return(NULL) }
+      input$files$datapath %>% 
+        dplyr::first() %>%
+        ulog_to_df()
+    })
   })
   
   # Update the logger dropdown in response to a file being selected
@@ -137,7 +139,9 @@ shiny::shinyServer(function(input, output, session) {
   
   output$segments = plotly::renderPlotly({
     if (!ready_to_plot()){ return(NULL) }
-    make_macro_plot(df(), segments(), selected_segment()) %>% plotly::event_register("plotly_click")
+    withProgress(message = 'Rendering plot', value = 0, {
+      make_macro_plot(df(), segments(), selected_segment()) %>% plotly::event_register("plotly_click")
+    })    
   })
   
   selected_point = reactive({
