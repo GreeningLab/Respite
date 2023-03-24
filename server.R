@@ -2,6 +2,9 @@ library(magrittr)
 library(shiny)
 library(dbplyr)
 
+# Allow 30 MB requests (large .ulog files)
+options(shiny.maxRequestSize=30*1024^2)
+
 #' Reads a ulog file and outputs a tibble
 #'
 #' @param path Filepath to the ulog file
@@ -133,7 +136,7 @@ shiny::shinyServer(function(input, output, session) {
   segments = reactive({
     if (!ready_to_plot()){ return(NULL) }
     withProgress(message = 'Calculating segments', value = 0, {
-      segment(df(), input$minseglen, penalty=input$penalty_type, pen.value=input$penalty_value)
+      segment(df(), input$minseglen, penalty=input$penalty_type, pen.value=glue::glue('{input$penalty_value} * diffparam'))
     })
   })
   
